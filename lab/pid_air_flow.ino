@@ -29,6 +29,9 @@
 // I/O
 #define FLOW_INPUT          A0
 #define OUT_PWM             11
+// serial port
+#define SERIAL_USB          Serial
+#define SERIAL_CMD          Serial1
 // serial commands
 #define CMD_TIMEOUT         10E3
 #define MAX_CMD_SIZE        64
@@ -90,10 +93,10 @@ void task_serial_command() {
   static bool cmd_echo_mode = false;
   static uint32_t cmd_t_last_char = 0;
   // check command
-  while (Serial1.available() > 0) {
+  while (SERIAL_CMD.available() > 0) {
     // receive loop
     while (true) {
-      int inByte = Serial1.read();
+      int inByte = SERIAL_CMD.read();
       // no more data
       if (inByte == -1)
         break;
@@ -102,14 +105,14 @@ void task_serial_command() {
         // remove last char in buffer
         cmd_rx_buf.remove(cmd_rx_buf.length() - 1);
         // send backspace + ' ' + backspace
-        Serial1.print((char) 8);
-        Serial1.print(' ');
-        Serial1.print((char) 8);
+        SERIAL_CMD.print((char) 8);
+        SERIAL_CMD.print(' ');
+        SERIAL_CMD.print((char) 8);
         break;
       }
       // if echo on
       if (cmd_echo_mode)
-        Serial1.print((char) inByte);
+        SERIAL_CMD.print((char) inByte);
       // reset command buffer if the last rx is too old
       if (millis() - cmd_t_last_char > CMD_TIMEOUT)
         cmd_rx_buf = "";
@@ -148,63 +151,63 @@ void task_serial_command() {
       root["out"] = pid_out;
       root["sp"] = pid_sp;
       // send it
-      root.printTo(Serial1);
-      Serial1.println();
+      root.printTo(SERIAL_CMD);
+      SERIAL_CMD.println();
     }
     else if (s_cmd.equals("pid")) {
       String pid_mode = (myPID.GetMode() == AUTOMATIC) ? "AUT" : "MAN";
-      Serial1.println("SP  " + String(pid_sp) + " m3/h");
-      Serial1.println("PV  " + String(pid_pv) + " m3/h");
-      Serial1.println("OUT " + String(pid_out) + " %");
-      Serial1.println("PID " + String(pid_p.kp, 1) + "/" + String(pid_p.ki, 1) + "/" + String(pid_p.kd, 1) + " " + pid_mode);
+      SERIAL_CMD.println("SP  " + String(pid_sp) + " m3/h");
+      SERIAL_CMD.println("PV  " + String(pid_pv) + " m3/h");
+      SERIAL_CMD.println("OUT " + String(pid_out) + " %");
+      SERIAL_CMD.println("PID " + String(pid_p.kp, 1) + "/" + String(pid_p.ki, 1) + "/" + String(pid_p.kd, 1) + " " + pid_mode);
     }
     else if (s_cmd.equals("auto")) {
-      Serial1.println(F("PID set to auto mode"));
+      SERIAL_CMD.println(F("PID set to auto mode"));
       myPID.SetMode(AUTOMATIC);
     }
     else if (s_cmd.equals("man")) {
-      Serial1.println(F("PID set to manual mode"));
+      SERIAL_CMD.println(F("PID set to manual mode"));
       myPID.SetMode(MANUAL);
     }
     else if (s_cmd.equals("out")) {
       if (! s_arg.equals(""))
         pid_out = s_arg.toFloat();
-      Serial1.print(F("PID out = "));
-      Serial1.println(pid_out);
+      SERIAL_CMD.print(F("PID out = "));
+      SERIAL_CMD.println(pid_out);
     }
     else if (s_cmd.equals("sp")) {
       if (! s_arg.equals(""))
         pid_sp = s_arg.toFloat();
-      Serial1.print(F("PID SetPoint = "));
-      Serial1.println(pid_sp);
+      SERIAL_CMD.print(F("PID SetPoint = "));
+      SERIAL_CMD.println(pid_sp);
     }
     else if (s_cmd.equals("kp")) {
       if (! s_arg.equals(""))
         pid_p.kp = s_arg.toFloat();
-      Serial1.print(F("PID kp = "));
-      Serial1.println(pid_p.kp);
+      SERIAL_CMD.print(F("PID kp = "));
+      SERIAL_CMD.println(pid_p.kp);
     }
     else if (s_cmd.equals("ki")) {
       if (! s_arg.equals(""))
         pid_p.ki = s_arg.toFloat();
-      Serial1.print(F("PID ki = "));
-      Serial1.println(pid_p.ki);
+      SERIAL_CMD.print(F("PID ki = "));
+      SERIAL_CMD.println(pid_p.ki);
     }
     else if (s_cmd.equals("kd")) {
       if (! s_arg.equals(""))
         pid_p.kd = s_arg.toFloat();
-      Serial1.print(F("PID kd = "));
-      Serial1.println(pid_p.kd);
+      SERIAL_CMD.print(F("PID kd = "));
+      SERIAL_CMD.println(pid_p.kd);
     }
     else if (s_cmd.equals("save")) {
       // store magic number, PID params and setpoint
       EEPROM.put(EEPROM_AD_MAGIG_NB, (uint16_t) EEPROM_MAGIC_NB);
       EEPROM.put(EEPROM_AD_PID_P, pid_p);
       EEPROM.put(EEPROM_AD_PID_SP, pid_sp);
-      Serial1.println(F("Write params (SP, kp, ki and kd) to EEPROM"));
+      SERIAL_CMD.println(F("Write params (SP, kp, ki and kd) to EEPROM"));
     }
     else {
-      Serial1.println(F("unknown command send \"?\" to view online help"));
+      SERIAL_CMD.println(F("unknown command send \"?\" to view online help"));
     }
     // reset for next one
     cmd_rx_buf = "";
@@ -234,8 +237,8 @@ void task_pid() {
 
 void setup() {
   // init serial
-  Serial.begin(9600);
-  Serial1.begin(9600);
+  SERIAL_USB.begin(9600);
+  SERIAL_CMD.begin(9600);
   // init IO
   pinMode(FLOW_INPUT, INPUT);
   // init LCD
