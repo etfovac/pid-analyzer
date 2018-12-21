@@ -27,7 +27,7 @@ Modbus MAP
         @8    ki
         @10   kd
 
-    - write area
+    - write area (read as nan value)
 
         @100  set set-point (m3/h)
         @102  set output (%)
