@@ -44,9 +44,14 @@ class FloatModbusClient(ModbusClient):
 class Tags:
     lock = Lock()
     cmd_q = Queue()
+    AUTO = False
+    MAN = False
     PV = 0.0
     OUT = 0.0
     SP = 0.0
+    KP = 0.0
+    KI = 0.0
+    KD = 0.0
 
 
 # some functions
@@ -57,21 +62,49 @@ def modbus_thread():
     while True:
         # read commands (auto, manu...)
         # auto
-        if c.read_coils(0)[0]:
-            c.write_single_coil(0, False)
+        if c.read_coils(100)[0]:
+            c.write_single_coil(100, False)
             Tags.cmd_q.put("auto")
         # manu
-        if c.read_coils(1)[0]:
-            c.write_single_coil(1, False)
+        if c.read_coils(101)[0]:
+            c.write_single_coil(101, False)
             Tags.cmd_q.put("man")
-        # set output
-        out_value = c.read_float(10)[0]
+        # save
+        if c.read_coils(110)[0]:
+            c.write_single_coil(110, False)
+            Tags.cmd_q.put("save")
+        # set-point update
+        sp_value = c.read_float(100)[0]
+        if sp_value:
+            c.write_float(100, [0.0])
+            Tags.cmd_q.put("sp %.2f" % sp_value)
+        # output update for manual mode
+        out_value = c.read_float(102)[0]
         if out_value:
-            c.write_float(10, [0.0])
+            c.write_float(102, [0.0])
             Tags.cmd_q.put("out %.2f" % out_value)
-        # write process monitoring value
+        # set kp params
+        kp_value = c.read_float(104)[0]
+        if kp_value:
+            c.write_float(104, [0.0])
+            Tags.cmd_q.put("kp %.2f" % kp_value)
+        # set ki params
+        ki_value = c.read_float(106)[0]
+        if ki_value:
+            c.write_float(106, [0.0])
+            Tags.cmd_q.put("ki %.2f" % ki_value)
+        # set kd params
+        kd_value = c.read_float(108)[0]
+        if kd_value:
+            c.write_float(108, [0.0])
+            Tags.cmd_q.put("kd %.2f" % kd_value)
+        # refresh PID status
         with Tags.lock:
-            write_l = [Tags.PV, Tags.OUT, Tags.SP]
+            coils_l = [Tags.AUTO, Tags.MAN]
+        c.write_multiple_coils(0, coils_l)
+        # refresh PID values
+        with Tags.lock:
+            write_l = [Tags.PV, Tags.SP, Tags.OUT, Tags.KP, Tags.KI, Tags.KD]
         c.write_float(0, write_l)
         # wait next loop
         time.sleep(0.5)
@@ -86,15 +119,10 @@ if __name__ == "__main__":
     tp.start()
 
     # init serial port
-    s = ArduinoCommandSerial("/dev/ttyACM0", baudrate=9600, timeout=2.0)
-    #s = ArduinoCommandSerial("/dev/ttyATH0", baudrate=9600, timeout=2.0)
+    s = ArduinoCommandSerial("/dev/ttyATH0", baudrate=9600, timeout=2.0)
 
     # init PID board
     s.send_cmd("auto", echo=True)
-    s.send_cmd("sp 12.0", echo=True)
-    s.send_cmd("kp 4.1", echo=True)
-    s.send_cmd("ki 2.5", echo=True)
-    s.send_cmd("kd 0.0", echo=True)
 
     # main loop
     while True:
@@ -107,9 +135,14 @@ if __name__ == "__main__":
             json_msg = s.send_cmd("json")
             d = json.loads(json_msg)
             with Tags.lock:
+                Tags.AUTO = float(d["auto"])
+                Tags.MAN = float(d["man"])
                 Tags.PV = float(d["pv"])
                 Tags.OUT = float(d["out"])
                 Tags.SP = float(d["sp"])
+                Tags.KP = float(d["kp"])
+                Tags.KI = float(d["ki"])
+                Tags.KD = float(d["kd"])
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
         # wait next loop

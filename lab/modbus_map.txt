@@ -1,0 +1,36 @@
+Modbus MAP
+----------
+
+* Coils
+
+    - read area
+
+        @0    auto mode
+        @1    manual mode
+
+    - write area
+
+        @100  set auto mode
+        @101  set manual mode
+
+        @110  save params to arduino EEPROM
+
+
+* Holding registers (all in IEEE 32 bits float)
+
+    - read area
+
+        @0    process value (m3/h)
+        @2    set-point (m3/h)
+        @4    PID out (%)
+        @6    kp
+        @8    ki
+        @10   kd
+
+    - write area
+
+        @100  set set-point (m3/h)
+        @102  set output (%)
+        @104  set kp
+        @106  set ki
+        @108  set kd

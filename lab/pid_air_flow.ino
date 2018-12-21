@@ -28,7 +28,7 @@
 // some const
 // I/O
 #define FLOW_INPUT          A0
-#define OUT_PWM             11
+#define OUT_PWM             6
 // serial port
 #define SERIAL_USB          Serial
 #define SERIAL_CMD          Serial1
@@ -150,6 +150,11 @@ void task_serial_command() {
       root["pv"] = pid_pv;
       root["out"] = pid_out;
       root["sp"] = pid_sp;
+      root["kp"] = pid_p.kp;
+      root["ki"] = pid_p.ki;
+      root["kd"] = pid_p.kd;
+      root["auto"] = (myPID.GetMode() == AUTOMATIC);
+      root["man"] = (myPID.GetMode() == MANUAL);
       // send it
       root.printTo(SERIAL_CMD);
       SERIAL_CMD.println();
@@ -240,7 +245,7 @@ void setup() {
   SERIAL_USB.begin(9600);
   SERIAL_CMD.begin(9600);
   // init IO
-  pinMode(FLOW_INPUT, INPUT);
+  pinMode(OUT_PWM, OUTPUT);
   // init LCD
   lcd.init();
   lcd.backlight();
