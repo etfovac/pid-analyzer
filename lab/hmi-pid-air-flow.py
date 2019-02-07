@@ -10,7 +10,6 @@ import tkinter as tk
 from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.animation as animation
 from matplotlib import style
 
 
@@ -206,7 +205,7 @@ class TabControl(HMITab):
             if not 1000.0 >= send_kd >= 0.0:
                 raise ValueError
             Tags.SET_PID_KD.set(send_kd)
-            self.ent_kp.config(bg="green")
+            self.ent_kd.config(bg="green")
         except ValueError:
             self.ent_kd.config(bg="red")
 
