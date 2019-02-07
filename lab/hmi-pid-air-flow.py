@@ -62,6 +62,10 @@ class HMITab(tk.Frame):
         self.bind('<Visibility>', lambda evt: self.tab_update())
         self._tab_update()
 
+    def do_every(self, do_cmd, every_ms=1000):
+        do_cmd()
+        self.after(every_ms, lambda: self.do_every(do_cmd, every_ms=every_ms))
+
     def _tab_update(self):
         if self.winfo_ismapped():
             self.tab_update()
@@ -71,7 +75,7 @@ class HMITab(tk.Frame):
         pass
 
 
-class TabMisc(HMITab):
+class TabControl(HMITab):
     def __init__(self, notebook, update_ms=500, *args, **kwargs):
         HMITab.__init__(self, notebook, update_ms, *args, **kwargs)
         # Some vars
@@ -132,7 +136,6 @@ class TabMisc(HMITab):
         self.ent_kd = tk.Entry(self.frmSetPID, width="6", justify=tk.RIGHT, textvariable=self.set_kd_str)
         self.ent_kd.grid(row=2, column=1, padx=5, pady=5)
         self.ent_kd.bind("<Return>", self.send_kd_value)
-        GraphFrame(self).grid(row=3, column=0, columnspan=5)
 
     def tab_update(self):
         # update display list
@@ -208,13 +211,99 @@ class TabMisc(HMITab):
             self.ent_kd.config(bg="red")
 
 
+class TabGraph(HMITab):
+    DATA_LEN = 900
+
+    def __init__(self, notebook, update_ms=1000, *args, **kwargs):
+        HMITab.__init__(self, notebook, update_ms, *args, **kwargs)
+        # init data
+        self.t = []
+        self.pv_l = []
+        self.sp_l = []
+        self.out_l = []
+        # init matplotlib graph
+        style.use("ggplot")
+        self.fig = Figure(figsize=(8, 5), dpi=112)
+        self.ax1 = self.fig.add_subplot(211)
+        self.ax2 = self.fig.add_subplot(212, sharex=self.ax1)
+        self.ax1.set_ylim(0, 25, auto=True)
+        self.ax2.set_ylim(0, 100, auto=False)
+        self.ax1.set_ylabel("m3/h", color="black")
+        self.ax2.set_ylabel("%", color="black")
+        self.fig.set_tight_layout(True)
+        # add graph widget to tk app
+        graph = FigureCanvasTkAgg(self.fig, master=self)
+        canvas = graph.get_tk_widget()
+        canvas.pack(expand=True)
+        # periodic data update
+        self.do_every(self.data_update, every_ms=1000)
+
+    def tab_update(self):
+        self.ax1.clear()
+        self.ax2.clear()
+        self.ax1.set_ylim(0, 25, auto=True)
+        self.ax2.set_ylim(0, 100, auto=False)
+        self.ax1.set_ylabel("m3/h", color="black")
+        self.ax2.set_ylabel("%", color="black")
+        self.ax1.plot(self.t, self.pv_l, "b", label="pv")
+        self.ax1.plot(self.t, self.sp_l, "g", label="sp")
+        self.ax1.legend()
+        self.ax2.plot(self.t, self.out_l, "r", label="out")
+        self.ax2.legend()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+    def data_update(self):
+        self.t.append(datetime.now())
+        while len(self.t) > TabGraph.DATA_LEN:
+            self.t.pop(0)
+        self.pv_l.append(Tags.PID_PV.val)
+        while len(self.pv_l) > TabGraph.DATA_LEN:
+            self.pv_l.pop(0)
+        self.sp_l.append(Tags.PID_SP.val)
+        while len(self.sp_l) > TabGraph.DATA_LEN:
+            self.sp_l.pop(0)
+        self.out_l.append(Tags.PID_OUT.val)
+        while len(self.out_l) > TabGraph.DATA_LEN:
+            self.out_l.pop(0)
+
+
+class HMIApp(tk.Tk):
+    def __init__(self, *args, **kwargs):
+        tk.Tk.__init__(self, *args, **kwargs)
+        # configure main window
+        self.wm_title("Contrôle de la régulation du flux d'air")
+        # self.attributes('-fullscreen', True)
+        # self.geometry("800x600")
+        # periodic tags update
+        self.do_every(Tags.update_tags, every_ms=500)
+        # build a notebook with tabs
+        self.note = ttk.Notebook(self)
+        self.tab_ctrl = TabControl(self.note)
+        self.tab_graph = TabGraph(self.note)
+        self.note.add(self.tab_ctrl, text='Contrôle (F1)')
+        self.note.add(self.tab_graph, text='Graphique (F2)')
+        # default selected tab
+        self.note.select(self.tab_ctrl)
+        self.note.pack(fill=tk.BOTH, expand=True)
+        # bind function keys to tabs
+        self.bind("<F1>", lambda evt: self.note.select(self.tab_ctrl))
+        self.bind("<F2>", lambda evt: self.note.select(self.tab_graph))
+        # build toolbar
+        self.toolbar = HMIToolbar(self, update_ms=500)
+
+    def do_every(self, do_cmd, every_ms=1000):
+        do_cmd()
+        self.after(every_ms, lambda: self.do_every(do_cmd, every_ms=every_ms))
+
+
 class HMIToolbar(tk.Frame):
     def __init__(self, tk_app, update_ms=500, *args, **kwargs):
         tk.Frame.__init__(self, tk_app, *args, **kwargs)
         self.tk_app = tk_app
         self.update_ms = update_ms
         # build toolbar
-        self.butTbox = tk.Button(self, text="Yun", relief=tk.SUNKEN,
+        self.butTbox = tk.Button(self, text="Yun", relief=tk.SUNKEN, width=8,
                                  state="disabled", disabledforeground="black")
         self.butTbox.pack(side=tk.LEFT)
         self.lblDate = tk.Label(self, text="", font=("TkDefaultFont", 12))
@@ -231,93 +320,6 @@ class HMIToolbar(tk.Frame):
     def tab_update(self):
         self.butTbox.configure(background=GREEN if Devices.yun.connected else PINK)
         self.lblDate.configure(text=time.strftime('%H:%M:%S %d/%m/%Y'))
-
-
-class HMIApp(tk.Tk):
-    def __init__(self, *args, **kwargs):
-        tk.Tk.__init__(self, *args, **kwargs)
-        # configure main window
-        self.wm_title("Contrôle de la régulation du flux d'air")
-        # self.attributes('-fullscreen', True)
-        # self.geometry("800x600")
-        # periodic tags update
-        self.do_every(Tags.update_tags, every_ms=500)
-        # build a notebook with tabs
-        self.note = ttk.Notebook(self)
-        self.tab_misc = TabMisc(self.note)
-        self.note.add(self.tab_misc, text='PID (F1)')
-        # default selected tab
-        self.note.select(self.tab_misc)
-        self.note.pack(fill=tk.BOTH, expand=True)
-        # bind function keys to tabs
-        self.bind("<F1>", lambda evt: self.note.select(self.tab_misc))
-        # build toolbar
-        self.toolbar = HMIToolbar(self, update_ms=500)
-
-    def do_every(self, do_cmd, every_ms=1000):
-        do_cmd()
-        self.after(every_ms, lambda: self.do_every(do_cmd, every_ms=every_ms))
-
-
-class GraphFrame(tk.Frame):
-    DATA_LEN = 900
-
-    def __init__(self, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
-        # init data
-        self.t = []
-        self.pv_l = []
-        self.sp_l = []
-        self.out_l = []
-        # init matplotlib graph
-        style.use("ggplot")
-        self.fig = Figure(figsize=(8, 5), dpi=112)
-        self.ax1 = self.fig.add_subplot(211)
-        self.ax2 = self.fig.add_subplot(212, sharex=self.ax1)
-        self.ax1.set_ylim(0, 25, auto=True)
-        self.ax2.set_ylim(0, 100, auto=False)
-        self.ax1.set_ylabel("m3/h", color="black")
-        self.ax2.set_ylabel("%", color="black")
-        self.fig.set_tight_layout(True)
-        # add animate graph widget to tk app
-        graph = FigureCanvasTkAgg(self.fig, master=self)
-        canvas = graph.get_tk_widget()
-        canvas.grid(row=0, column=0)
-        self.ani = animation.FuncAnimation(self.fig, self.update_graph, interval=1000)
-        # update data every 1s
-        self.do_every(self.update_data, every_ms=1000)
-
-    def update_graph(self, _):
-        self.ax1.clear()
-        self.ax2.clear()
-        self.ax1.set_ylim(0, 25, auto=True)
-        self.ax2.set_ylim(0, 100, auto=False)
-        self.ax1.set_ylabel("m3/h", color="black")
-        self.ax2.set_ylabel("%", color="black")
-        self.ax1.plot(self.t, self.pv_l, "b", label="pv")
-        self.ax1.plot(self.t, self.sp_l, "g", label="sp")
-        self.ax1.legend()
-        self.ax2.plot(self.t, self.out_l, "r", label="out")
-        self.ax2.legend()
-
-    def update_data(self):
-        self.t.append(datetime.now())
-        while len(self.t) > GraphFrame.DATA_LEN:
-            self.t.pop(0)
-        self.pv_l.append(Tags.PID_PV.val)
-        while len(self.pv_l) > GraphFrame.DATA_LEN:
-            self.pv_l.pop(0)
-        self.sp_l.append(Tags.PID_SP.val)
-        while len(self.sp_l) > GraphFrame.DATA_LEN:
-            self.sp_l.pop(0)
-        self.out_l.append(Tags.PID_OUT.val)
-        while len(self.out_l) > GraphFrame.DATA_LEN:
-            self.out_l.pop(0)
-
-    def do_every(self, do_cmd, every_ms=1000):
-        do_cmd()
-        self.after(every_ms, lambda: self.do_every(do_cmd, every_ms=every_ms))
 
 
 if __name__ == '__main__':
