@@ -16,13 +16,13 @@
 */
 
 #include <EEPROM.h>
-// from https://github.com/br3ttb/Arduino-PID-Library
+// from https://github.com/br3ttb/Arduino-PID-Library (version 1.2.0)
 #include <PID_v1.h>
-// from https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
+// from https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library (version 1.1.2)
 #include <LiquidCrystal_I2C.h>
-// from https://github.com/bblanchon/ArduinoJson
+// from https://github.com/bblanchon/ArduinoJson (version 5.13.4)
 #include <ArduinoJson.h>
-// from https://github.com/arkhipenko/TaskScheduler
+// from https://github.com/arkhipenko/TaskScheduler (version 3.0.2)
 #include <TaskScheduler.h>
 
 // some const
@@ -47,9 +47,9 @@
 // some struct
 // define struct with defaults values
 struct PidParams {
-  double kp = 6.0;
-  double ki = 0.75;
-  double kd = 0.25;
+  double kp = 4.0;
+  double ki = 2.5;
+  double kd = 0.0;
 };
 
 // some vars
@@ -57,7 +57,7 @@ struct PidParams {
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 // PID
 PidParams pid_p;
-double pid_sp = 32.0;
+double pid_sp = 10.0;
 double pid_pv = 0.0;
 double pid_out = 0.0;
 PID myPID(&pid_pv, &pid_out, &pid_sp, 0, 0, 0, DIRECT);
@@ -175,32 +175,47 @@ void task_serial_command() {
       myPID.SetMode(MANUAL);
     }
     else if (s_cmd.equals("out")) {
-      if (! s_arg.equals(""))
-        pid_out = s_arg.toFloat();
+      if (! s_arg.equals("")) {
+        double _pid_out = s_arg.toFloat();
+        if (0.0 <= _pid_out && _pid_out <= 100.0)
+          pid_out = _pid_out;
+      }
       SERIAL_CMD.print(F("PID out = "));
       SERIAL_CMD.println(pid_out);
     }
     else if (s_cmd.equals("sp")) {
-      if (! s_arg.equals(""))
-        pid_sp = s_arg.toFloat();
+      if (! s_arg.equals("")) {
+        double _pid_sp = s_arg.toFloat();
+        if (0.0 <= _pid_sp && _pid_sp <= 25.0)
+          pid_sp = _pid_sp;
+      }
       SERIAL_CMD.print(F("PID SetPoint = "));
       SERIAL_CMD.println(pid_sp);
     }
     else if (s_cmd.equals("kp")) {
-      if (! s_arg.equals(""))
-        pid_p.kp = s_arg.toFloat();
+      if (! s_arg.equals("")) {
+        double _kp = s_arg.toFloat();
+        if (0.0 <= _kp && _kp <= 1000.0)
+          pid_p.kp = _kp;
+      }
       SERIAL_CMD.print(F("PID kp = "));
       SERIAL_CMD.println(pid_p.kp);
     }
     else if (s_cmd.equals("ki")) {
-      if (! s_arg.equals(""))
-        pid_p.ki = s_arg.toFloat();
+      if (! s_arg.equals("")) {
+        double _ki = s_arg.toFloat();
+        if (0.0 <= _ki && _ki <= 1000.0)
+          pid_p.ki = _ki;
+      }
       SERIAL_CMD.print(F("PID ki = "));
       SERIAL_CMD.println(pid_p.ki);
     }
     else if (s_cmd.equals("kd")) {
-      if (! s_arg.equals(""))
-        pid_p.kd = s_arg.toFloat();
+      if (! s_arg.equals("")) {
+        double _kd = s_arg.toFloat();
+        if (0.0 <= _kd && _kd <= 1000.0)
+          pid_p.kd = _kd;
+      }
       SERIAL_CMD.print(F("PID kd = "));
       SERIAL_CMD.println(pid_p.kd);
     }
